@@ -9,6 +9,7 @@
 #include <vector>
 
 #include "spscdataringbuffer.h"
+#include "downsampler.h"
 
 struct SamplePoint
 {
@@ -125,6 +126,74 @@ void testConcurrentProducerConsumer()
 
     require(lastReadSequence.load(std::memory_order_acquire) >= 0, "consumer never received any payload");
 }
+
+void testMinMaxWithoutXMatchesTsDownsample()
+{
+    std::vector<double> y(100);
+    for (std::size_t i = 0; i < y.size(); ++i) {
+        y[i] = static_cast<double>(i);
+    }
+
+    const auto indices = Downsampler::downsample(y, 10, DownsampleAlgorithm::MinMax);
+    const std::vector<std::size_t> expected{0, 19, 20, 39, 40, 59, 60, 79, 80, 99};
+    require(indices == expected, "MinMax without x mismatch");
+}
+
+void testM4WithoutXMatchesTsDownsample()
+{
+    std::vector<double> y(100);
+    for (std::size_t i = 0; i < y.size(); ++i) {
+        y[i] = static_cast<double>(i);
+    }
+
+    const auto indices = Downsampler::downsample(y, 12, DownsampleAlgorithm::M4);
+    const std::vector<std::size_t> expected{0, 0, 33, 33, 34, 34, 66, 66, 67, 67, 99, 99};
+    require(indices == expected, "M4 without x mismatch");
+}
+
+void testLttbWithoutXMatchesTsDownsample()
+{
+    const std::vector<double> y{0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0};
+    const auto indices = Downsampler::downsample(y, 4, DownsampleAlgorithm::Lttb);
+    const std::vector<std::size_t> expected{0, 1, 5, 9};
+    require(indices == expected, "LTTB without x mismatch");
+}
+
+void testMinMaxLttbWithoutXMatchesTsDownsample()
+{
+    const std::vector<double> y{0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0};
+    const auto indices = Downsampler::downsample(y, 4, DownsampleAlgorithm::MinMaxLttb, 2);
+    const std::vector<std::size_t> expected{0, 1, 5, 9};
+    require(indices == expected, "MinMaxLTTB without x mismatch");
+}
+
+void testMinMaxWithXGapMatchesTsDownsample()
+{
+    std::vector<double> x(100);
+    std::vector<double> y(100);
+    for (std::size_t i = 0; i < 100; ++i) {
+        x[i] = i > 50 ? static_cast<double>(i + 50) : static_cast<double>(i);
+        y[i] = static_cast<double>(i);
+    }
+
+    const auto indices = Downsampler::downsample(x, y, 10, DownsampleAlgorithm::MinMax);
+    const std::vector<std::size_t> expected{0, 29, 30, 50, 51, 69, 70, 99};
+    require(indices == expected, "MinMax with x gap mismatch");
+}
+
+void testM4WithXGapMatchesTsDownsample()
+{
+    std::vector<double> x(100);
+    std::vector<double> y(100);
+    for (std::size_t i = 0; i < 100; ++i) {
+        x[i] = i > 50 ? static_cast<double>(i + 50) : static_cast<double>(i);
+        y[i] = static_cast<double>(i);
+    }
+
+    const auto indices = Downsampler::downsample(x, y, 20, DownsampleAlgorithm::M4);
+    const std::vector<std::size_t> expected{0, 0, 29, 29, 30, 30, 50, 50, 51, 51, 69, 69, 70, 70, 99, 99};
+    require(indices == expected, "M4 with x gap mismatch");
+}
 }
 
 int main(int argc, char* argv[])
@@ -142,6 +211,24 @@ int main(int argc, char* argv[])
 
         testConcurrentProducerConsumer();
         stream << "PASS testConcurrentProducerConsumer" << Qt::endl;
+
+        testMinMaxWithoutXMatchesTsDownsample();
+        stream << "PASS testMinMaxWithoutXMatchesTsDownsample" << Qt::endl;
+
+        testM4WithoutXMatchesTsDownsample();
+        stream << "PASS testM4WithoutXMatchesTsDownsample" << Qt::endl;
+
+        testLttbWithoutXMatchesTsDownsample();
+        stream << "PASS testLttbWithoutXMatchesTsDownsample" << Qt::endl;
+
+        testMinMaxLttbWithoutXMatchesTsDownsample();
+        stream << "PASS testMinMaxLttbWithoutXMatchesTsDownsample" << Qt::endl;
+
+        testMinMaxWithXGapMatchesTsDownsample();
+        stream << "PASS testMinMaxWithXGapMatchesTsDownsample" << Qt::endl;
+
+        testM4WithXGapMatchesTsDownsample();
+        stream << "PASS testM4WithXGapMatchesTsDownsample" << Qt::endl;
     } catch (const std::exception& exception) {
         errorStream << "FAIL " << exception.what() << Qt::endl;
         return 1;

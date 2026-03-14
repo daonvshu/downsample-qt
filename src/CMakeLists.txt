@@ -1,8 +1,10 @@
 set(DOWNSAMPLE_QT_LIBRARY_SOURCES
+    downsampler.cpp
 )
 
 set(DOWNSAMPLE_QT_LIBRARY_HEADERS
     spscdataringbuffer.h
+    downsampler.h
 )
 
 add_library(downsample_qt_lib
