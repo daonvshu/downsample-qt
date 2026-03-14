@@ -7,6 +7,7 @@
 #include <atomic>
 #include <chrono>
 #include <exception>
+#include <limits>
 #include <stdexcept>
 #include <thread>
 #include <vector>
