@@ -1,4 +1,5 @@
 #include <QCoreApplication>
+#include <QVector>
 #include <QTextStream>
 
 #include <atomic>
@@ -26,12 +27,12 @@ void require(bool condition, const char* message)
     }
 }
 
-std::vector<SamplePoint> makeSamples(qint64 baseSequence, std::size_t count)
+QVector<SamplePoint> makeSamples(qint64 baseSequence, qsizetype count)
 {
-    std::vector<SamplePoint> samples(count);
-    for (std::size_t i = 0; i < count; ++i) {
+    QVector<SamplePoint> samples(count);
+    for (qsizetype i = 0; i < count; ++i) {
         samples[i] = SamplePoint{
-            baseSequence + static_cast<qint64>(i),
+            baseSequence + i,
             static_cast<float>(baseSequence) + static_cast<float>(i) * 0.5F,
         };
     }
@@ -44,13 +45,13 @@ void testBasicReadWrite()
     SpscDataRingBuffer<SamplePoint> buffer(4, 8);
     const auto samples = makeSamples(10, 3);
 
-    buffer.push(samples.data(), samples.size());
+    require(buffer.push(samples.constData(), samples.size()), "basic push should succeed");
 
-    std::vector<SamplePoint> latest;
+    QVector<SamplePoint> latest;
     require(buffer.tryReadLatest(latest), "basic read should succeed");
     require(latest.size() == samples.size(), "basic read size mismatch");
 
-    for (std::size_t i = 0; i < samples.size(); ++i) {
+    for (qsizetype i = 0; i < samples.size(); ++i) {
         require(latest[i].sequence == samples[i].sequence, "basic read sequence mismatch");
         require(latest[i].value == samples[i].value, "basic read value mismatch");
     }
@@ -66,15 +67,15 @@ void testLatestWinsWhenProducerOverruns()
     const auto second = makeSamples(200, 2);
     const auto third = makeSamples(300, 2);
 
-    buffer.push(first.data(), first.size());
-    buffer.push(second.data(), second.size());
-    buffer.push(third.data(), third.size());
+    require(buffer.push(first.constData(), first.size()), "first push should succeed");
+    require(buffer.push(second.constData(), second.size()), "second push should succeed");
+    require(buffer.push(third.constData(), third.size()), "third push should succeed");
 
-    std::vector<SamplePoint> latest;
+    QVector<SamplePoint> latest;
     require(buffer.tryReadLatest(latest), "latest read after overrun should succeed");
     require(latest.size() == third.size(), "latest overrun size mismatch");
 
-    for (std::size_t i = 0; i < third.size(); ++i) {
+    for (qsizetype i = 0; i < third.size(); ++i) {
         require(latest[i].sequence == third[i].sequence, "overrun sequence mismatch");
         require(latest[i].value == third[i].value, "overrun value mismatch");
     }
@@ -82,17 +83,17 @@ void testLatestWinsWhenProducerOverruns()
 
 void testConcurrentProducerConsumer()
 {
-    constexpr std::size_t totalWrites = 2000;
-    constexpr std::size_t elementsPerWrite = 6;
+    constexpr qsizetype totalWrites = 2000;
+    constexpr qsizetype elementsPerWrite = 6;
 
     SpscDataRingBuffer<SamplePoint> buffer(8, elementsPerWrite);
     std::atomic<bool> producerDone{false};
     std::atomic<qint64> lastReadSequence{-1};
 
     std::thread producer([&buffer, &producerDone]() {
-        for (std::size_t batch = 0; batch < totalWrites; ++batch) {
-            auto payload = makeSamples(static_cast<qint64>(batch * 100), elementsPerWrite);
-            buffer.push(payload.data(), payload.size());
+        for (qsizetype batch = 0; batch < totalWrites; ++batch) {
+            auto payload = makeSamples(batch * 100, elementsPerWrite);
+            require(buffer.push(payload.constData(), payload.size()), "concurrent push should succeed");
             std::this_thread::sleep_for(std::chrono::microseconds(100));
         }
 
@@ -100,7 +101,7 @@ void testConcurrentProducerConsumer()
     });
 
     std::thread consumer([&buffer, &producerDone, &lastReadSequence]() {
-        std::vector<SamplePoint> latest;
+        QVector<SamplePoint> latest;
 
         while (!producerDone.load(std::memory_order_acquire)) {
             if (buffer.tryReadLatest(latest) && !latest.empty()) {
