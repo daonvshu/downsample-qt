@@ -1,5 +1,7 @@
 #include "downsampler.h"
 
+#include <QElapsedTimer>
+
 #include <algorithm>
 #include <cmath>
 #include <numeric>
@@ -396,22 +398,35 @@ QVector<qsizetype> Downsampler::downsample(
     const QVector<double>& y,
     qsizetype nOut,
     DownsampleAlgorithm algorithm,
-    qsizetype minmaxRatio)
+    qsizetype minmaxRatio,
+    qint64* elapsedNs)
 {
     // Returns source indexes instead of copied samples so callers can reuse the
     // original buffers and apply the indexes to multiple aligned channels.
+    QElapsedTimer timer;
+    timer.start();
+
+    QVector<qsizetype> result;
     switch (algorithm) {
     case DownsampleAlgorithm::MinMax:
-        return minMaxWithoutX(y, nOut);
+        result = minMaxWithoutX(y, nOut);
+        break;
     case DownsampleAlgorithm::M4:
-        return m4WithoutX(y, nOut);
+        result = m4WithoutX(y, nOut);
+        break;
     case DownsampleAlgorithm::Lttb:
-        return lttbWithoutX(y, nOut);
+        result = lttbWithoutX(y, nOut);
+        break;
     case DownsampleAlgorithm::MinMaxLttb:
-        return minMaxLttbWithoutX(y, nOut, minmaxRatio);
+        result = minMaxLttbWithoutX(y, nOut, minmaxRatio);
+        break;
     }
 
-    return {};
+    if (elapsedNs != nullptr) {
+        *elapsedNs = timer.nsecsElapsed();
+    }
+
+    return result;
 }
 
 QVector<qsizetype> Downsampler::downsample(
@@ -419,19 +434,32 @@ QVector<qsizetype> Downsampler::downsample(
     const QVector<double>& y,
     qsizetype nOut,
     DownsampleAlgorithm algorithm,
-    qsizetype minmaxRatio)
+    qsizetype minmaxRatio,
+    qint64* elapsedNs)
 {
     // x must be sorted and aligned with y.
+    QElapsedTimer timer;
+    timer.start();
+
+    QVector<qsizetype> result;
     switch (algorithm) {
     case DownsampleAlgorithm::MinMax:
-        return minMaxWithX(x, y, nOut);
+        result = minMaxWithX(x, y, nOut);
+        break;
     case DownsampleAlgorithm::M4:
-        return m4WithX(x, y, nOut);
+        result = m4WithX(x, y, nOut);
+        break;
     case DownsampleAlgorithm::Lttb:
-        return lttbWithX(x, y, nOut);
+        result = lttbWithX(x, y, nOut);
+        break;
     case DownsampleAlgorithm::MinMaxLttb:
-        return minMaxLttbWithX(x, y, nOut, minmaxRatio);
+        result = minMaxLttbWithX(x, y, nOut, minmaxRatio);
+        break;
     }
 
-    return {};
+    if (elapsedNs != nullptr) {
+        *elapsedNs = timer.nsecsElapsed();
+    }
+
+    return result;
 }

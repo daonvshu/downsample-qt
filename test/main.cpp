@@ -1,4 +1,6 @@
 #include <QCoreApplication>
+#include <QDebug>
+#include <QtGlobal>
 #include <QVector>
 #include <QTextStream>
 
@@ -25,6 +27,36 @@ void require(bool condition, const char* message)
     if (!condition) {
         throw std::runtime_error(message);
     }
+}
+
+template <typename F>
+void benchmarkDownsample(const char* testName, F&& func)
+{
+    constexpr int warmupRuns = 5;
+    constexpr int measuredRuns = 1000;
+
+    qint64 elapsedNs = 0;
+    for (int i = 0; i < warmupRuns; ++i) {
+        func(&elapsedNs);
+    }
+
+    qint64 totalElapsedNs = 0;
+    qint64 minElapsedNs = std::numeric_limits<qint64>::max();
+    qint64 maxElapsedNs = 0;
+    for (int i = 0; i < measuredRuns; ++i) {
+        func(&elapsedNs);
+        totalElapsedNs += elapsedNs;
+        minElapsedNs = qMin(minElapsedNs, elapsedNs);
+        maxElapsedNs = qMax(maxElapsedNs, elapsedNs);
+    }
+
+    qDebug().noquote()
+        << QStringLiteral("%1 avgNs=%2 minNs=%3 maxNs=%4 runs=%5")
+               .arg(QString::fromLatin1(testName))
+               .arg(totalElapsedNs / measuredRuns)
+               .arg(minElapsedNs)
+               .arg(maxElapsedNs)
+               .arg(measuredRuns);
 }
 
 QVector<SamplePoint> makeSamples(qint64 baseSequence, qsizetype count)
@@ -135,9 +167,11 @@ void testMinMaxWithoutXMatchesTsDownsample()
         y[i] = static_cast<double>(i);
     }
 
-    const auto indices = Downsampler::downsample(y, 10, DownsampleAlgorithm::MinMax);
     const QVector<qsizetype> expected{0, 19, 20, 39, 40, 59, 60, 79, 80, 99};
-    require(indices == expected, "MinMax without x mismatch");
+    benchmarkDownsample("testMinMaxWithoutXMatchesTsDownsample", [&y, &expected](qint64* elapsedNs) {
+        const auto indices = Downsampler::downsample(y, 10, DownsampleAlgorithm::MinMax, 4, elapsedNs);
+        require(indices == expected, "MinMax without x mismatch");
+    });
 }
 
 void testM4WithoutXMatchesTsDownsample()
@@ -147,25 +181,32 @@ void testM4WithoutXMatchesTsDownsample()
         y[i] = static_cast<double>(i);
     }
 
-    const auto indices = Downsampler::downsample(y, 12, DownsampleAlgorithm::M4);
     const QVector<qsizetype> expected{0, 0, 33, 33, 34, 34, 66, 66, 67, 67, 99, 99};
-    require(indices == expected, "M4 without x mismatch");
+    benchmarkDownsample("testM4WithoutXMatchesTsDownsample", [&y, &expected](qint64* elapsedNs) {
+        const auto indices = Downsampler::downsample(y, 12, DownsampleAlgorithm::M4, 4, elapsedNs);
+        require(indices == expected, "M4 without x mismatch");
+    });
 }
 
 void testLttbWithoutXMatchesTsDownsample()
 {
     const QVector<double> y{0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0};
-    const auto indices = Downsampler::downsample(y, 4, DownsampleAlgorithm::Lttb);
     const QVector<qsizetype> expected{0, 1, 5, 9};
-    require(indices == expected, "LTTB without x mismatch");
+    benchmarkDownsample("testLttbWithoutXMatchesTsDownsample", [&y, &expected](qint64* elapsedNs) {
+        const auto indices = Downsampler::downsample(y, 4, DownsampleAlgorithm::Lttb, 4, elapsedNs);
+        require(indices == expected, "LTTB without x mismatch");
+    });
 }
 
 void testMinMaxLttbWithoutXMatchesTsDownsample()
 {
     const QVector<double> y{0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0};
-    const auto indices = Downsampler::downsample(y, 4, DownsampleAlgorithm::MinMaxLttb, 2);
     const QVector<qsizetype> expected{0, 1, 5, 9};
-    require(indices == expected, "MinMaxLTTB without x mismatch");
+    benchmarkDownsample("testMinMaxLttbWithoutXMatchesTsDownsample", [&y, &expected](qint64* elapsedNs) {
+        const auto indices =
+            Downsampler::downsample(y, 4, DownsampleAlgorithm::MinMaxLttb, 2, elapsedNs);
+        require(indices == expected, "MinMaxLTTB without x mismatch");
+    });
 }
 
 void testMinMaxWithXGapMatchesTsDownsample()
@@ -177,9 +218,11 @@ void testMinMaxWithXGapMatchesTsDownsample()
         y[i] = static_cast<double>(i);
     }
 
-    const auto indices = Downsampler::downsample(x, y, 10, DownsampleAlgorithm::MinMax);
     const QVector<qsizetype> expected{0, 29, 30, 50, 51, 69, 70, 99};
-    require(indices == expected, "MinMax with x gap mismatch");
+    benchmarkDownsample("testMinMaxWithXGapMatchesTsDownsample", [&x, &y, &expected](qint64* elapsedNs) {
+        const auto indices = Downsampler::downsample(x, y, 10, DownsampleAlgorithm::MinMax, 4, elapsedNs);
+        require(indices == expected, "MinMax with x gap mismatch");
+    });
 }
 
 void testM4WithXGapMatchesTsDownsample()
@@ -191,9 +234,11 @@ void testM4WithXGapMatchesTsDownsample()
         y[i] = static_cast<double>(i);
     }
 
-    const auto indices = Downsampler::downsample(x, y, 20, DownsampleAlgorithm::M4);
     const QVector<qsizetype> expected{0, 0, 29, 29, 30, 30, 50, 50, 51, 51, 69, 69, 70, 70, 99, 99};
-    require(indices == expected, "M4 with x gap mismatch");
+    benchmarkDownsample("testM4WithXGapMatchesTsDownsample", [&x, &y, &expected](qint64* elapsedNs) {
+        const auto indices = Downsampler::downsample(x, y, 20, DownsampleAlgorithm::M4, 4, elapsedNs);
+        require(indices == expected, "M4 with x gap mismatch");
+    });
 }
 }
 

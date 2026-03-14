@@ -1,5 +1,6 @@
 #pragma once
 
+#include <QtTypes>
 #include <QVector>
 
 /**
@@ -31,6 +32,8 @@ public:
      * \param minmaxRatio Only used by MinMaxLttb. When y.size() / nOut is larger
      * than this ratio, the algorithm first performs MinMax preselection and then
      * runs LTTB on the reduced set.
+     * \param elapsedNs Optional output parameter that receives the total
+     * execution time in nanoseconds.
      * \return Source indexes in ascending order for the selected points. Returns
      * an empty QVector when the input is invalid.
      */
@@ -38,7 +41,8 @@ public:
         const QVector<double>& y,
         qsizetype nOut,
         DownsampleAlgorithm algorithm,
-        qsizetype minmaxRatio = 4);
+        qsizetype minmaxRatio = 4,
+        qint64* elapsedNs = nullptr);
 
     /**
      * \brief Downsamples an x/y series pair and returns indexes into the source data.
@@ -52,6 +56,8 @@ public:
      * \param minmaxRatio Only used by MinMaxLttb. When x.size() / nOut is larger
      * than this ratio, the algorithm first performs MinMax preselection and then
      * runs LTTB on the reduced set.
+     * \param elapsedNs Optional output parameter that receives the total
+     * execution time in nanoseconds.
      * \return Source indexes in ascending order for the selected points. For
      * MinMax and M4 with x-gaps, the returned size can be smaller than nOut.
      * Returns an empty QVector when the input is invalid.
@@ -61,5 +67,6 @@ public:
         const QVector<double>& y,
         qsizetype nOut,
         DownsampleAlgorithm algorithm,
-        qsizetype minmaxRatio = 4);
+        qsizetype minmaxRatio = 4,
+        qint64* elapsedNs = nullptr);
 };
